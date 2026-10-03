@@ -1,0 +1,8 @@
+code,parameter_name,value_type,value,unit,valid_from,valid_to,basis_type,basis_number,basis_date,basis_clause,basis_url,verified_on
+MIN_WAGE,Мінімальна заробітна плата,Сума,8647,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 8, абз. 2",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+MIN_WAGE_HOURLY,Мінімальна заробітна плата у погодинному розмірі,Сума,52,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 8, абз. 3",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+SUBSISTENCE_GENERAL,Прожитковий мінімум на одну особу,Сума,3209,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 7, абз. 1",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+SUBSISTENCE_CHILD_UNDER_6,Прожитковий мінімум для дітей віком до 6 років,Сума,2817,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 7, абз. 2",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+SUBSISTENCE_CHILD_6_18,Прожитковий мінімум для дітей віком від 6 до 18 років,Сума,3512,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 7, абз. 3",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+SUBSISTENCE_WORKING,Прожитковий мінімум для працездатних осіб,Сума,3328,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 7, абз. 4",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03
+SUBSISTENCE_DISABLED,"Прожитковий мінімум для осіб, які втратили працездатність",Сума,2595,грн,2026-01-01,,Закон,4695-IX,2025-12-03,"ст. 7, абз. 6",https://zakon.rada.gov.ua/laws/show/4695-20,2026-10-03

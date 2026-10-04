@@ -133,6 +133,7 @@ def _check_files(target, manifest):
 
 
 def sign(args):
+	args.volumes = args.volumes or ["/Volumes", "~/Desktop"]
 	target = pathlib.Path(args.dir).resolve()
 	manifest_bytes = (target / MANIFEST).read_bytes()
 	_check_files(target, json.loads(manifest_bytes))
@@ -144,7 +145,7 @@ def sign(args):
 	tried = set()  # файли ключів, якими вже підписано в цьому запуску або які не підійшли
 	while len(signed := _signed(target, manifest_bytes)) < keys_module.THRESHOLD:
 		candidates = []
-		for key in sorted(pathlib.Path(args.volumes).glob("*/ua_key*.key")):
+		for key in sorted(key for root in args.volumes for key in pathlib.Path(root).expanduser().glob("*/ua_key*.key")):
 			hint = re.search(r"(\d+)", key.stem)
 			if key not in tried and not (hint and int(hint.group(1)) in signed):
 				candidates.append(key)
@@ -227,7 +228,10 @@ def main():
 	p.set_defaults(run=prepare)
 	g = commands.add_parser("sign")
 	g.add_argument("dir")
-	g.add_argument("--volumes", default="/Volumes", help="де шукати носії з ua_key*.key (або папки з ними)")
+	g.add_argument(
+		"--volumes", action="append", default=None,
+		help="де шукати носії або папки з ua_key*.key; за умовчанням /Volumes і ~/Desktop (поки ключі не на носіях)",
+	)
 	g.add_argument("--keep-mounted", action="store_true", help="не виймати носій після підпису")
 	g.set_defaults(run=sign)
 	k = commands.add_parser("pack")

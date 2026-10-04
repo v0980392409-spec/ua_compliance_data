@@ -23,12 +23,19 @@
 ## Як випустити пакет
 
 Потрібні: `minisign` (`brew install minisign`), копія `ua_compliance` поруч із цим
-репозиторієм, Python 3 з пакетом `cryptography`.
+репозиторієм, Python 3 з пакетом `cryptography`. Python з Homebrew не ставить пакети в систему, тому
+окреме оточення — один раз:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install cryptography
+```
+
+Далі всі команди — через `.venv/bin/python` замість `python3`.
 
 1. Підготувати маніфест (CSV перевіряється кодом застосунку одразу):
 
    ```bash
-   python3 publish.py prepare parameters 20261101 --expires 2027-03-31 \
+   .venv/bin/python publish.py prepare parameters 20261101 --expires 2027-03-31 \
        --min-app 0.1.0 --notes "Закон про Державний бюджет на 2027 рік: МЗП" parameters.csv
    ```
 
@@ -36,12 +43,12 @@
    закріпленими в застосунку, попросить пароль (його питає minisign) і вийме носій:
 
    ```bash
-   python3 publish.py sign build/parameters-20261101
+   .venv/bin/python publish.py sign build/parameters-20261101
    ```
 3. Зібрати й перевірити (підписи й поріг — кодом застосунку):
 
    ```bash
-   python3 publish.py pack build/parameters-20261101
+   .venv/bin/python publish.py pack build/parameters-20261101
    ```
 
 4. Опублікувати реліз командою, яку друкує `pack`. Тег — `<канал>-<версія>`.

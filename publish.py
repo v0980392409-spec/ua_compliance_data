@@ -40,6 +40,8 @@ from ua_compliance.packages.signature import SignatureError, verify_detached  # 
 
 PARSERS = {"parameters": parse.parse_parameters, "classifiers": parse.parse_classifiers}
 MANIFEST = "manifest.json"
+# Підказки друкуємо тим інтерпретатором, яким запущено: у системному Python немає cryptography.
+PYTHON = ".venv/bin/python" if pathlib.Path(sys.prefix).resolve() == (HERE / ".venv").resolve() else "python3"
 
 
 def prepare(args):
@@ -74,7 +76,7 @@ def prepare(args):
 	}
 	(target / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
 	print(f"Маніфест: {target / MANIFEST}\nПідписати (носії з ключами — по черзі):")
-	print(f"  python3 publish.py sign {target.relative_to(HERE)}")
+	print(f"  {PYTHON} publish.py sign {target.relative_to(HERE)}")
 
 
 def _key_number(key_id):
@@ -159,7 +161,7 @@ def sign(args):
 		if not args.keep_mounted and os.path.ismount(key.parent):  # папку на диску не виймаємо
 			subprocess.run(["diskutil", "eject", key.parent], check=False)
 
-	print(f"Підписів {len(signed)} з {keys_module.THRESHOLD}. Далі:\n  python3 publish.py pack {target.relative_to(HERE)}")
+	print(f"Підписів {len(signed)} з {keys_module.THRESHOLD}. Далі:\n  {PYTHON} publish.py pack {target.relative_to(HERE)}")
 
 
 def pack(args):

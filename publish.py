@@ -4,8 +4,12 @@
 
     python3 publish.py prepare parameters 20261101 --expires 2027-03-31 \\
         --min-app 0.1.0 --notes "Закон про Державний бюджет на 2027 рік" parameters.csv
-    # підписати build/parameters-20261101/manifest.json двома ключами (команди друкує prepare)
+    python3 publish.py sign build/parameters-20261101   # носії з ключами — по черзі
     python3 publish.py pack build/parameters-20261101
+
+`sign` шукає секретний ключ на підключених носіях (`/Volumes/*/ua_key*.key`), підписує
+ним маніфест (пароль питає сам minisign), одразу перевіряє підпис кодом застосунку й виймає
+носій; просить наступний, доки не набереться поріг. Ключ з носія нікуди не копіюється.
 
 `pack` перевіряє пакет **кодом самого застосунку** (розбір CSV, підписи, поріг ключів) з
 копії репозиторію ua_compliance поруч (або з UA_COMPLIANCE_PATH) і лише тоді збирає zip.
@@ -13,11 +17,14 @@
 """
 
 import argparse
+import base64
 import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
+import subprocess
 import sys
 import zipfile
 from datetime import date
@@ -66,9 +73,93 @@ def prepare(args):
 		"notes": args.notes,
 	}
 	(target / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-	print(f"Маніфест: {target / MANIFEST}\nПідписати двома ключами (на машинах, де лежать ключі):")
-	for number in (1, 2):
-		print(f"  minisign -Sm {target / MANIFEST} -s <ключ {number}>.key -x {target / MANIFEST}.{number}.minisig")
+	print(f"Маніфест: {target / MANIFEST}\nПідписати (носії з ключами — по черзі):")
+	print(f"  python3 publish.py sign {target.relative_to(HERE)}")
+
+
+def _key_number(key_id):
+	"""Номер ключа (1…3) за ідентифікатором, який повертає verify_detached."""
+	for number, encoded in enumerate(keys_module.trusted_keys(), 1):
+		if base64.b64encode(base64.b64decode(encoded)[2:10]).decode() == key_id:
+			return number
+
+
+def _minisign_id(number):
+	"""Ідентифікатор ключа так, як його друкує minisign: його й звіряють із носієм."""
+	return base64.b64decode(keys_module.trusted_keys()[number - 1])[2:10][::-1].hex().upper()
+
+
+def _signed(target, manifest_bytes):
+	"""{номер ключа: файл підпису} для чинних підписів пакета."""
+	signed = {}
+	for path in sorted(target.glob(f"{MANIFEST}*.minisig")):
+		try:
+			signed[_key_number(verify_detached(manifest_bytes, path.read_text(), keys_module.trusted_keys()))] = path
+		except SignatureError as error:
+			print(f"  {path.name}: {error}")
+	return signed
+
+
+def _check_files(target, manifest):
+	for item in manifest["files"]:
+		raw = (target / item["name"]).read_bytes()
+		if len(raw) != item["size"] or hashlib.sha256(raw).hexdigest() != item["sha256"]:
+			raise SystemExit(f"Файл {item['name']} змінено після prepare")
+
+
+def sign(args):
+	target = pathlib.Path(args.dir).resolve()
+	manifest_bytes = (target / MANIFEST).read_bytes()
+	_check_files(target, json.loads(manifest_bytes))
+	if not keys_module.trusted_keys():
+		raise SystemExit(f"У {APP} ключі ще не закріплені: застосунок такий пакет не прийме")
+	if not shutil.which("minisign"):
+		raise SystemExit("Немає minisign: brew install minisign")
+
+	tried = set()  # файли ключів, якими вже підписано в цьому запуску або які не підійшли
+	while len(signed := _signed(target, manifest_bytes)) < keys_module.THRESHOLD:
+		candidates = []
+		for key in sorted(pathlib.Path(args.volumes).glob("*/ua_key*.key")):
+			hint = re.search(r"(\d+)", key.stem)
+			if key not in tried and not (hint and int(hint.group(1)) in signed):
+				candidates.append(key)
+		if not candidates:
+			done = ", ".join(map(str, sorted(signed))) or "жодним"
+			try:
+				input(
+					f"Підписано ключами: {done}; потрібно ще {keys_module.THRESHOLD - len(signed)}. "
+					"Вставте носій з іншим ключем і натисніть Enter (Ctrl+C — вийти) "
+				)
+			except (EOFError, KeyboardInterrupt):
+				raise SystemExit("\nПерервано; зроблені підписи збережено — запустіть sign ще раз") from None
+			continue
+
+		key = candidates[0]
+		pending = target / "pending.sig.tmp"  # поза маскою підписів, доки не перевірено
+		print(f"Ключ {key}")
+		result = subprocess.run(["minisign", "-Sm", target / MANIFEST, "-s", key, "-x", pending])
+		if result.returncode:
+			pending.unlink(missing_ok=True)
+			print("Не підписано (невірний пароль?) — ще раз")
+			continue
+		try:
+			number = _key_number(verify_detached(manifest_bytes, pending.read_text(), keys_module.trusted_keys()))
+		except SignatureError as error:
+			pending.unlink()
+			tried.add(key)
+			print(f"{key}: {error} — цей ключ не годиться")
+			continue
+		tried.add(key)
+		if number in signed:
+			pending.unlink()
+			print(f"Ключем {number} пакет уже підписано — потрібен інший")
+		else:
+			pending.rename(target / f"{MANIFEST}.key{number}.minisig")
+			print(f"Підписано ключем {number} ({_minisign_id(number)})")
+		if not args.keep_mounted:
+			subprocess.run(["diskutil", "eject", key.parent], check=False)
+
+	print(f"Підписів {len(signed)} з {keys_module.THRESHOLD}. Далі:\n  python3 publish.py pack {target.relative_to(HERE)}")
 
 
 def pack(args):
@@ -76,22 +167,12 @@ def pack(args):
 	manifest_bytes = (target / MANIFEST).read_bytes()
 	manifest = json.loads(manifest_bytes)
 
-	trusted = keys_module.trusted_keys()
-	if not trusted:
+	if not keys_module.trusted_keys():
 		raise SystemExit(f"У {APP} ключі ще не закріплені: застосунок такий пакет не прийме")
-	key_ids = set()
-	for path in sorted(target.glob(f"{MANIFEST}*.minisig")):
-		try:
-			key_ids.add(verify_detached(manifest_bytes, path.read_text(), trusted))
-		except SignatureError as error:
-			print(f"  {path.name}: {error}")
+	key_ids = _signed(target, manifest_bytes)
 	if len(key_ids) < keys_module.THRESHOLD:
 		raise SystemExit(f"Підписів {len(key_ids)}, потрібно {keys_module.THRESHOLD}")
-
-	for item in manifest["files"]:
-		raw = (target / item["name"]).read_bytes()
-		if len(raw) != item["size"] or hashlib.sha256(raw).hexdigest() != item["sha256"]:
-			raise SystemExit(f"Файл {item['name']} змінено після prepare")
+	_check_files(target, manifest)
 
 	name = f"ua-{manifest['channel']}-{manifest['version']}.zip"
 	archive_path = HERE / "build" / name
@@ -117,6 +198,11 @@ def main():
 	p.add_argument("--notes", required=True, help="що й чому змінюється — видно в передпоказі")
 	p.add_argument("files", nargs="+")
 	p.set_defaults(run=prepare)
+	g = commands.add_parser("sign")
+	g.add_argument("dir")
+	g.add_argument("--volumes", default="/Volumes", help="де шукати носії з ua_key*.key")
+	g.add_argument("--keep-mounted", action="store_true", help="не виймати носій після підпису")
+	g.set_defaults(run=sign)
 	k = commands.add_parser("pack")
 	k.add_argument("dir")
 	k.set_defaults(run=pack)

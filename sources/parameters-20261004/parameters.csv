@@ -1,0 +1,3 @@
+code,parameter_name,value_type,value,unit,valid_from,valid_to,basis_type,basis_number,basis_date,basis_clause,basis_url,verified_on
+MIN_WAGE,Мінімальна заробітна плата,Сума,8000,грн,2025-01-01,2025-12-31,Закон,4059-IX,2024-11-19,"ст. 8, абз. 2",https://zakon.rada.gov.ua/laws/show/4059-20,2026-10-04
+SUBSISTENCE_WORKING,Прожитковий мінімум для працездатних осіб,Сума,3028,грн,2025-01-01,2025-12-31,Закон,4059-IX,2024-11-19,"ст. 7, абз. 4",https://zakon.rada.gov.ua/laws/show/4059-20,2026-10-04

@@ -66,6 +66,9 @@ def prepare(args):
 		raise SystemExit(f"Канал {args.channel} не підтримується; є: {', '.join(PARSERS)}")
 	if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", args.topic):
 		raise SystemExit("Тема — латиниця, цифри й дефіси, наприклад budget-2027")
+	missing = [name for name in args.files if not pathlib.Path(name).is_file()]
+	if missing:
+		raise SystemExit(f"Немає файлів: {', '.join(missing)}")  # до створення каталогу: інакше номер згорить
 	version = args.version or _next_version(args.channel)
 	target = HERE / "build" / f"{args.channel}-{version}-{args.topic}"
 	if target.exists():

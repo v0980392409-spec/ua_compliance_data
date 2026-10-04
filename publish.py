@@ -2,10 +2,14 @@
 
 Три кроки; секретні ключі з машини підписанта не виходять:
 
-    python3 publish.py prepare parameters 20261101 --expires 2027-03-31 \\
+    .venv/bin/python publish.py prepare parameters budget-2027 --expires 2027-03-31 \\
         --min-app 0.1.0 --notes "Закон про Державний бюджет на 2027 рік" parameters.csv
-    python3 publish.py sign build/parameters-20261101   # носії з ключами — по черзі
-    python3 publish.py pack build/parameters-20261101
+    .venv/bin/python publish.py sign build/parameters-20261005-budget-2027   # носії — по черзі
+    .venv/bin/python publish.py pack build/parameters-20261005-budget-2027
+
+Номер версії `prepare` бере сам — наступний після найбільшого серед релізів каналу (теги в
+origin) і каталогів build/. Тема — коротка мітка латиницею для людини: вона йде в ім'я
+каталогу, тег і zip, а екземпляр дивиться лише на номер у маніфесті.
 
 `sign` шукає секретний ключ на підключених носіях (`/Volumes/*/ua_key*.key`), підписує
 ним маніфест (пароль питає сам minisign), одразу перевіряє підпис кодом застосунку й виймає
@@ -44,10 +48,26 @@ MANIFEST = "manifest.json"
 PYTHON = ".venv/bin/python" if pathlib.Path(sys.prefix).resolve() == (HERE / ".venv").resolve() else "python3"
 
 
+def _next_version(channel):
+	"""Наступний номер каналу: більший за всі випущені (теги в origin) і підготовлені (build/).
+
+	Екземпляр приймає лише номер, більший за застосований, тому номер не вгадуємо руками."""
+	result = subprocess.run(["git", "ls-remote", "--tags", "origin"], cwd=HERE, capture_output=True, text=True)
+	if result.returncode:
+		raise SystemExit(f"Не прочитано теги origin (потрібні, щоб не повторити номер): {result.stderr.strip()}")
+	names = [line.rsplit("refs/tags/", 1)[-1] for line in result.stdout.splitlines()]
+	names += [path.name for path in (HERE / "build").glob(f"{channel}-*") if path.is_dir()]
+	versions = [int(m.group(1)) for name in names if (m := re.fullmatch(rf"{channel}-(\d+)(?:-.*)?", name))]
+	return max(versions, default=0) + 1
+
+
 def prepare(args):
 	if args.channel not in PARSERS:
 		raise SystemExit(f"Канал {args.channel} не підтримується; є: {', '.join(PARSERS)}")
-	target = HERE / "build" / f"{args.channel}-{args.version}"
+	if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", args.topic):
+		raise SystemExit("Тема — латиниця, цифри й дефіси, наприклад budget-2027")
+	version = args.version or _next_version(args.channel)
+	target = HERE / "build" / f"{args.channel}-{version}-{args.topic}"
 	if target.exists():
 		raise SystemExit(f"{target} уже є: версія не перевидається, візьміть наступну")
 	(target / "data").mkdir(parents=True)
@@ -67,7 +87,7 @@ def prepare(args):
 	manifest = {
 		"type": "ua-compliance-package",
 		"channel": args.channel,
-		"version": int(args.version),
+		"version": int(version),
 		"created": date.today().isoformat(),
 		"expires": args.expires,
 		"min_app_version": args.min_app,
@@ -176,7 +196,9 @@ def pack(args):
 		raise SystemExit(f"Підписів {len(key_ids)}, потрібно {keys_module.THRESHOLD}")
 	_check_files(target, manifest)
 
-	name = f"ua-{manifest['channel']}-{manifest['version']}.zip"
+	# Тег і zip — за ім'ям каталогу: у ньому тема. Старі каталоги без теми — просто без неї.
+	tag = target.name
+	name = f"ua-{tag}.zip"
 	archive_path = HERE / "build" / name
 	with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
 		archive.write(target / MANIFEST, MANIFEST)
@@ -184,7 +206,6 @@ def pack(args):
 			archive.write(path, path.name)
 		for item in manifest["files"]:
 			archive.write(target / item["name"], item["name"])
-	tag = f"{manifest['channel']}-{manifest['version']}"
 	print(f"Пакет: {archive_path} (підписів {len(key_ids)})\nОпублікувати:")
 	print(f'  gh release create {tag} {archive_path} --title "{tag}" --notes "{manifest["notes"]}"')
 
@@ -194,7 +215,8 @@ def main():
 	commands = parser.add_subparsers(dest="command", required=True)
 	p = commands.add_parser("prepare")
 	p.add_argument("channel")
-	p.add_argument("version")
+	p.add_argument("topic", help="коротка мітка латиницею: budget-2027, katottg-2026-10")
+	p.add_argument("--version", type=int, help="номер вручну; за умовчанням — наступний")
 	p.add_argument("--expires", required=True, help="РРРР-ММ-ДД; після неї пакет не застосовується")
 	p.add_argument("--min-app", required=True, help="найнижча версія застосунку, яка прийме пакет")
 	p.add_argument("--notes", required=True, help="що й чому змінюється — видно в передпоказі")

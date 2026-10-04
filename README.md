@@ -35,7 +35,7 @@ python3 -m venv .venv && .venv/bin/pip install cryptography
 1. Підготувати маніфест (CSV перевіряється кодом застосунку одразу):
 
    ```bash
-   .venv/bin/python publish.py prepare parameters 20261101 --expires 2027-03-31 \
+   .venv/bin/python publish.py prepare parameters budget-2027 --expires 2027-03-31 \
        --min-app 0.1.0 --notes "Закон про Державний бюджет на 2027 рік: МЗП" parameters.csv
    ```
 
@@ -43,17 +43,18 @@ python3 -m venv .venv && .venv/bin/pip install cryptography
    закріпленими в застосунку, попросить пароль (його питає minisign) і вийме носій:
 
    ```bash
-   .venv/bin/python publish.py sign build/parameters-20261101
+   .venv/bin/python publish.py sign build/parameters-20261005-budget-2027
    ```
 3. Зібрати й перевірити (підписи й поріг — кодом застосунку):
 
    ```bash
-   .venv/bin/python publish.py pack build/parameters-20261101
+   .venv/bin/python publish.py pack build/parameters-20261005-budget-2027
    ```
 
-4. Опублікувати реліз командою, яку друкує `pack`. Тег — `<канал>-<версія>`.
+4. Опублікувати реліз командою, яку друкує `pack`. Тег — `<канал>-<версія>-<тема>`.
 
-Версія — ціле число, що росте в межах каналу (зручно `РРРРММДД`). Виправлення помилки — новий
+Версія — ціле число, що росте в межах каналу; `prepare` бере наступне саме (за тегами релізів),
+вводиться лише тема. Перші пакети мали номер-дату, тож лічба йде від `20261004`. Виправлення помилки — новий
 пакет з більшою версією: застосований пакет не скасовується.
 
 Схеми CSV — у контракті пакета (`specs/023-legal-parameters-updates/contracts/package-manifest.md`

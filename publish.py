@@ -156,7 +156,7 @@ def sign(args):
 		else:
 			pending.rename(target / f"{MANIFEST}.key{number}.minisig")
 			print(f"Підписано ключем {number} ({_minisign_id(number)})")
-		if not args.keep_mounted:
+		if not args.keep_mounted and os.path.ismount(key.parent):  # папку на диску не виймаємо
 			subprocess.run(["diskutil", "eject", key.parent], check=False)
 
 	print(f"Підписів {len(signed)} з {keys_module.THRESHOLD}. Далі:\n  python3 publish.py pack {target.relative_to(HERE)}")
@@ -200,7 +200,7 @@ def main():
 	p.set_defaults(run=prepare)
 	g = commands.add_parser("sign")
 	g.add_argument("dir")
-	g.add_argument("--volumes", default="/Volumes", help="де шукати носії з ua_key*.key")
+	g.add_argument("--volumes", default="/Volumes", help="де шукати носії з ua_key*.key (або папки з ними)")
 	g.add_argument("--keep-mounted", action="store_true", help="не виймати носій після підпису")
 	g.set_defaults(run=sign)
 	k = commands.add_parser("pack")

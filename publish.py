@@ -42,7 +42,11 @@ from ua_compliance.packages import parse  # noqa: E402
 from ua_compliance.packages.reader import PackageError  # noqa: E402
 from ua_compliance.packages.signature import SignatureError, verify_detached  # noqa: E402
 
-PARSERS = {"parameters": parse.parse_parameters, "classifiers": parse.parse_classifiers}
+PARSERS = {
+	"parameters": parse.parse_parameters,
+	"calendar": parse.parse_holidays,
+	"classifiers": parse.parse_classifiers,
+}
 MANIFEST = "manifest.json"
 # Підказки друкуємо тим інтерпретатором, яким запущено: у системному Python немає cryptography.
 PYTHON = ".venv/bin/python" if pathlib.Path(sys.prefix).resolve() == (HERE / ".venv").resolve() else "python3"
